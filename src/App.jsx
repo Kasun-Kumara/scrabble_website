@@ -738,6 +738,11 @@ function RealTimeMatchDashboard() {
 
           <CompetitorPanel side="Robot" score={match.robot.score} isActive={match.currentPlayer === "Robot"} />
         </div>
+        <LiveBoard
+          board={match.board}
+          owners={match.boardOwners}
+          size={match.boardSize}
+        />
       </Card>
     </Section>
   );
@@ -765,6 +770,89 @@ function CompetitorPanel({ side, score, isActive }) {
   );
 }
 
+function LiveBoard({ board, owners, size }) {
+  const columns = Array.from({ length: size }, (_, index) => String.fromCharCode(65 + index));
+
+  return (
+    <section className="border-t border-[var(--border)] p-5 sm:p-8" aria-label="Live Scrabble board">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[var(--primary)]">Live board</p>
+          <h3 className="mt-2 text-2xl font-extrabold tracking-[-0.04em]">Python app grid</h3>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs font-bold text-[var(--muted)]">
+          <BoardLegend color="bg-emerald-500" label="Robot tiles" />
+          <BoardLegend color="bg-amber-400" label="Human tiles" />
+          <BoardLegend color="bg-white/15" label="Existing tiles" />
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-x-auto pb-2">
+        <div
+          className="mx-auto grid min-w-[540px] max-w-[760px] gap-1"
+          style={{ gridTemplateColumns: `1.6rem repeat(${size}, minmax(0, 1fr))` }}
+        >
+          <span aria-hidden="true" />
+          {columns.map((column) => (
+            <span key={column} className="grid place-items-center text-xs font-extrabold text-[var(--muted)]">
+              {column}
+            </span>
+          ))}
+
+          {board.map((row, rowIndex) => (
+            <BoardRow
+              key={rowIndex}
+              row={row}
+              owners={owners[rowIndex]}
+              rowIndex={rowIndex}
+              columns={columns}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BoardRow({ row, owners, rowIndex, columns }) {
+  return (
+    <>
+      <span className="grid place-items-center text-xs font-extrabold text-[var(--muted)]">{rowIndex + 1}</span>
+      {row.map((letter, columnIndex) => {
+        const owner = owners?.[columnIndex] || 0;
+        const ownerStyle = owner === 1
+          ? "border-emerald-400/55 bg-emerald-500/25 text-emerald-50"
+          : owner === 2
+            ? "border-amber-300/55 bg-amber-400/25 text-amber-50"
+            : letter
+              ? "border-white/25 bg-white/10"
+              : "border-white/8 bg-white/[0.025]";
+        const square = `${columns[columnIndex]}${rowIndex + 1}`;
+
+        return (
+          <div
+            key={square}
+            className={`grid aspect-square place-items-center rounded-md border font-mono text-lg font-black transition-colors sm:text-xl ${ownerStyle}`}
+            title={`${square}${letter ? `: ${letter}` : ": empty"}`}
+            aria-label={`${square}${letter ? ` ${letter}` : " empty"}`}
+          >
+            {letter}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function BoardLegend({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`h-2.5 w-2.5 rounded-sm ${color}`} aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
 function useLiveMatch() {
   const [apiUrl, setApiUrl] = useState(getInitialApiUrl);
   const [endpointInput, setEndpointInput] = useState(getInitialApiUrl);
@@ -777,6 +865,9 @@ function useLiveMatch() {
     turnCountdownSeconds: 120,
     cartCountdownSeconds: null,
     cartCountdownActive: false,
+    boardSize: 12,
+    board: createEmptyBoard(12),
+    boardOwners: createEmptyBoard(12, 0),
     gameStatus: "not_started",
   });
 
@@ -798,6 +889,7 @@ function useLiveMatch() {
         if (!active) return;
 
         const gameStatus = payload.game_status || "not_started";
+        const boardSize = safeBoardSize(payload.board_size);
         const currentPlayer = gameStatus === "not_started"
           ? "Waiting"
           : Number(payload.current_player) === 1 ? "Robot" : "Human Player";
@@ -808,6 +900,9 @@ function useLiveMatch() {
           turnCountdownSeconds: safeCountdown(payload.turn_countdown_seconds),
           cartCountdownSeconds: safeCountdown(payload.cart_countdown_seconds),
           cartCountdownActive: Boolean(payload.cart_countdown_active),
+          boardSize,
+          board: normalizeBoard(payload.board, boardSize, ""),
+          boardOwners: normalizeBoard(payload.board_owners, boardSize, 0),
           gameStatus,
         });
         setConnection("connected");
@@ -893,6 +988,26 @@ function safeCountdown(value) {
   if (value === null || value === undefined) return null;
   const seconds = Number(value);
   return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : null;
+}
+
+function safeBoardSize(value) {
+  const size = Number(value);
+  return Number.isInteger(size) && size >= 2 && size <= 20 ? size : 12;
+}
+
+function createEmptyBoard(size, emptyValue = "") {
+  return Array.from({ length: size }, () => Array(size).fill(emptyValue));
+}
+
+function normalizeBoard(value, size, emptyValue) {
+  return Array.from({ length: size }, (_, rowIndex) =>
+    Array.from({ length: size }, (_, columnIndex) => {
+      const cell = Array.isArray(value?.[rowIndex]) ? value[rowIndex][columnIndex] : emptyValue;
+      if (emptyValue === 0) return cell === 1 || cell === 2 ? cell : 0;
+      const letter = String(cell || "").trim().toUpperCase();
+      return /^[A-Z]$/.test(letter) ? letter : "";
+    }),
+  );
 }
 
 function gameStatusLabel(status) {
