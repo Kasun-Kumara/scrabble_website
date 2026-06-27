@@ -1,0 +1,1335 @@
+import { useEffect, useState, useRef } from "react";
+import { Link, NavLink, Route, Routes } from "react-router-dom";
+import HardwareCarousel from "./components/HardwareCarousel";
+import SkillsMatrix from "./components/SkillsMatrix";
+import { ScrollReveal, ScrollRevealStagger } from "./components/ScrollReveal";
+
+const navItems = [
+  { label: "Overview", href: "/overview" },
+  { label: "System", href: "/system" },
+  { label: "Hardware", href: "/hardware" },
+  { label: "Team", href: "/team" },
+];
+
+const metrics = [
+  { value: "15x15", label: "Physical board grid" },
+  { value: "2", label: "Human and robot players" },
+  { value: "Live", label: "Telemetry dashboard" },
+  { value: "Demo", label: "Presentation ready" },
+];
+
+const architecture = [
+  {
+    title: "Vision Layer",
+    detail:
+      "Camera-assisted board state capture for detecting tile placement, turn progress, and board occupancy.",
+  },
+  {
+    title: "Decision Layer",
+    detail:
+      "Move scoring, candidate word ranking, and game-state validation before the robot commits a physical action.",
+  },
+  {
+    title: "Motion Layer",
+    detail:
+      "Robot arm control for tile pickup, travel, placement, and safe return-to-home behavior.",
+  },
+  {
+    title: "Dashboard Layer",
+    detail:
+      "Operator-facing interface for scores, status, recent moves, hardware readiness, and test observations.",
+  },
+];
+
+const hardwareModules = [
+  {
+    name: "ESP32 Microcontroller",
+    category: "Control",
+    image: "/assets/esp32-microcontroller.png",
+    imageAlt: "ESP32 development board with ESP-WROOM-32 module",
+    purpose: "Handles connected control tasks, fast IO coordination, and communication with the wider system.",
+    specifications: ["3.3V logic", "Wi-Fi/Bluetooth capable", "Serial communication support"],
+    role: "Coordinates game-side electronics and can bridge sensor, display, and software control signals.",
+  },
+  {
+    name: "Arduino Uno + CNC Shield V3",
+    category: "Motion",
+    image: "/assets/arduino-uno-board.png",
+    imageAlt: "Arduino Uno Rev3 microcontroller board",
+    purpose: "Provides the dedicated motion-control layer for the X-Y plotter mechanism.",
+    specifications: ["5V logic", "CNC Shield V3 expansion", "Stepper driver slots for axis control"],
+    role: "Receives movement commands and drives the plotter axes for accurate tile positioning.",
+  },
+  {
+    name: "NEMA17 Stepper Motors",
+    category: "Motion",
+    image: "/assets/nema17-stepper-motors.png",
+    imageAlt: "NEMA 17 stepper motor with mounting plate and connector",
+    purpose: "Move the plotter head across the Scrabble board with repeatable X-Y positioning.",
+    specifications: ["Stepper-based positioning", "X-axis and Y-axis movement", "Driven through A4988 modules"],
+    role: "Forms the mechanical motion backbone for robotic tile placement.",
+  },
+  {
+    name: "A4988 Stepper Drivers",
+    category: "Motion",
+    image: "/assets/a4988-stepper-drivers.png",
+    imageAlt: "A4988 stepper motor driver module with heat sink",
+    purpose: "Convert controller step and direction signals into motor phase currents.",
+    specifications: ["Microstepping support", "Current-limit adjustment", "CNC Shield compatible"],
+    role: "Sits between the CNC Shield and NEMA17 motors to control speed, direction, and torque.",
+  },
+  {
+    name: "12V Electromagnet + Z-Axis",
+    category: "Pickup",
+    image: "/assets/12v-electromagnet.png",
+    imageAlt: "12V cylindrical electromagnet with wire leads",
+    purpose: "Picks up and releases Scrabble tiles during robotic placement.",
+    specifications: ["12V electromagnet", "Vertical pickup/drop motion", "Tile grip calibration required"],
+    role: "Acts as the end effector that physically transfers each tile onto the board.",
+  },
+  {
+    name: "MG995 Servo Motor",
+    category: "Actuation",
+    image: "/assets/mg995-servo-motor.png",
+    imageAlt: "MG995 high-speed digital servo motor with three-wire connector",
+    purpose: "Supports controlled mechanical movement for tile handling or auxiliary actuation.",
+    specifications: ["High-torque servo", "PWM control", "Mechanical linkage support"],
+    role: "Adds controlled angular motion where the system needs compact actuation.",
+  },
+  {
+    name: "Web Camera",
+    category: "Sensing",
+    image: "/assets/web-camera.png",
+    imageAlt: "USB webcam for board image capture",
+    purpose: "Captures board images for OCR-based letter and word recognition.",
+    specifications: ["Board-facing camera", "Image capture for Python processing", "Lighting-sensitive calibration"],
+    role: "Feeds visual data to Tesseract OCR and dictionary validation logic.",
+  },
+  {
+    name: "ST7920 Graphical LCD + Buttons",
+    category: "Interface",
+    image: "/assets/st7920-graphical-lcd.png",
+    imageAlt: "128x64 ST7920 graphical LCD module",
+    purpose: "Displays timer, startup messages, challenge menus, and user navigation options.",
+    specifications: ["Graphical LCD display", "Push buttons for Power, Countdown, Challenge, Previous, Next"],
+    role: "Provides the local player interface for match control and challenge handling.",
+  },
+  {
+    name: "RGB LED Strip",
+    category: "Interface",
+    image: "/assets/rgb-led-strip.png",
+    imageAlt: "Addressable RGB LED strip with multicolor lighting",
+    purpose: "Highlights challenged words and gives visual feedback during gameplay.",
+    specifications: ["Addressable visual feedback", "Board highlight zones", "Microcontroller controlled"],
+    role: "Makes challenge status and selected word positions visible to players.",
+  },
+  {
+    name: "Tile Distribution Cart",
+    category: "Distribution",
+    purpose: "Moves tiles between the human and robotic player positions.",
+    specifications: ["1000RPM 12V gear motor", "L298N motor driver", "Relay-assisted power switching"],
+    role: "Automates tile distribution and supports repeatable rack-to-board workflow.",
+  },
+  {
+    name: "Power Regulation",
+    category: "Power",
+    purpose: "Distributes stable voltages to motors, logic boards, display, and actuators.",
+    specifications: ["12V power pack", "Buck converter", "Separate motor and logic rails"],
+    role: "Keeps high-current actuators isolated from sensitive control electronics.",
+  },
+  {
+    name: "Rack and Pinion Mechanism",
+    category: "Mechanism",
+    image: "/assets/rack-and-pinion-mechanism.png",
+    imageAlt: "Rack and pinion gear mechanism for linear motion",
+    purpose: "Provides mechanical translation for board lift, tile feed, or positioning movement.",
+    specifications: ["Linear mechanical motion", "Actuator integration", "Alignment-dependent assembly"],
+    role: "Converts motor rotation into controlled linear motion for the physical system.",
+  },
+];
+
+const hardwareOverview = [
+  ["Motion", "X-Y plotter, NEMA17 motors, A4988 drivers, CNC Shield V3"],
+  ["Pickup", "12V electromagnet, Z-axis movement, MG995 servo support"],
+  ["Perception", "Web camera, Tesseract OCR, board image calibration"],
+  ["Interface", "ST7920 LCD, push buttons, RGB LED challenge highlighting"],
+];
+
+const connectionFlow = [
+  "Player input enters through buttons and local LCD menu controls.",
+  "Camera captures the board and sends images to the software layer for OCR and word validation.",
+  "Validated commands are sent over serial communication to ESP32 and Arduino control boards.",
+  "Arduino Uno with CNC Shield drives stepper motors through A4988 drivers for X-Y movement.",
+  "Electromagnet, servo, LED strip, relay, and cart motor execute the physical feedback and tile flow.",
+];
+
+const powerRails = [
+  ["12V input", "Power pack feeds motors, electromagnet, relay, and high-current actuator loads."],
+  ["Regulated logic", "Buck converter steps voltage down for controller boards, LCD, sensors, and signal electronics."],
+  ["Motor branch", "Stepper motors and gear motor stay on a separated high-current path to reduce noise."],
+  ["Control branch", "ESP32, Arduino, buttons, display, camera link, and LED control signals share stable logic power."],
+];
+
+const hardwareChallenges = [
+  {
+    challenge: "Accurate tile placement",
+    solution: "Calibrated X-Y stepper movement, pickup/drop positions, and plotter alignment before full gameplay tests.",
+  },
+  {
+    challenge: "Reliable tile gripping",
+    solution: "Used an electromagnet-based pickup system with Z-axis movement and repeated pickup/drop calibration.",
+  },
+  {
+    challenge: "OCR accuracy under lighting changes",
+    solution: "Integrated a fixed webcam viewpoint and planned lighting/OCR tuning for clearer board captures.",
+  },
+  {
+    challenge: "Motor noise and power stability",
+    solution: "Separated 12V actuator loads from regulated logic power using buck conversion and driver modules.",
+  },
+  {
+    challenge: "Player challenge visibility",
+    solution: "Added LCD navigation and RGB LED highlighting so challenged words can be reviewed clearly.",
+  },
+];
+
+const workflow = [
+  "Human places tiles on the physical Scrabble board.",
+  "The board state is scanned and compared with the previous turn.",
+  "The system computes a valid robot move and checks hardware readiness.",
+  "The robot picks, moves, and places tiles while the dashboard records the result.",
+];
+
+const highlights = [
+  {
+    title: "Autonomous Navigation",
+    copy: "Controlled movement planning for tile pickup, travel, placement, and safe return-to-home behavior.",
+  },
+  {
+    title: "Computer Vision",
+    copy: "Board-state recognition placeholders for camera calibration, tile detection, and square-level validation.",
+  },
+  {
+    title: "Mechanical Design",
+    copy: "End-effector, rack alignment, and placement tolerance documentation for a physical game system.",
+  },
+  {
+    title: "Embedded Systems",
+    copy: "Microcontroller and actuator integration placeholders for reliable turn execution and telemetry.",
+  },
+];
+
+const stats = [
+  ["Detection Accuracy", "94%", "Placeholder target from board-state tests"],
+  ["Response Time", "1.8s", "Average decision-to-action interval"],
+  ["Total Matches", "12", "Demo and calibration rounds logged"],
+  ["Success Rate", "88%", "Completed robot turns without reset"],
+];
+
+const teamMembers = [
+  {
+    name: "Praveen Ramanathan",
+    description: "Handled tile cart hardware and control systems, including forward/backward cart movement, tile rack functionality, calibration, and mechanical integration. Also designed the 12 x 12 light grid representation and developed the live website dashboard for showcasing the game, project, and team.",
+    color: "#6EE7B7",
+    image: "/assets/praveen-ramanathan.png",
+    github: "https://github.com/Praveen-R-2518",
+    linkedin: "https://www.linkedin.com/in/praveen-r-b374612aa/"
+  },
+  {
+    name: "Kasun Kumara",
+    description: "Developed the plotter motor-control system, programmed NEMA17 stepper motors for X-Y movement, configured motor drivers and power management, and built final interconnectivity between the plotter, tile cart, and board. Also worked on the desktop application backend with custom API integration.",
+    color: "#3B82F6",
+    image: "/assets/kasun-kumara.png",
+    github: "https://github.com/Kasun-Kumara",
+    linkedin: "https://www.linkedin.com/in/kasun-kumara-30baaa338/"
+  },
+  {
+    name: "Praveen Fernando",
+    description: "Designed and developed the plotter frame, assembled the belt-driven X-Y mechanism, integrated the webcam for board capture, implemented OCR and online dictionary validation, and developed the board-raising actuator system. Also contributed to mobile application development and system testing.",
+    color: "#F472B6",
+    image: "/assets/praveen-fernando.png",
+    github: "https://github.com/ARSPFdo-2004",
+    linkedin: "https://www.linkedin.com/in/praveen-fernando-4236a63a7/"
+  },
+  {
+    name: "Mahinsa Wattegedara",
+    description: "Worked on the board structure, 3D design, tile gripping mechanism, electromagnet-based pickup system, and Z-axis movement. Integrated the pickup mechanism with the X-Y plotter, calibrated pickup/drop-off positions, and tested the claw and Z-axis assembly for accurate tile placement.",
+    color: "#FBBF24",
+    image: "/assets/mahinsa-wattegedara.png",
+    github: "https://github.com/Mahinsa-Wattegedara",
+    linkedin: "https://www.linkedin.com/in/mahinsa-waththegedara-28b7b335a/"
+  },
+  {
+    name: "Neleesha Peiris",
+    description: "Designed the PCB for the tile cart, LCD display, buttons, and actuator control system using EasyEDA. Prepared PCB layouts, verified component placement, handled soldering and hardware integration, designed the ST7920 LCD interface, and implemented Power, Countdown, Challenge, Previous, and Next button controls.",
+    color: "#34D399",
+    image: "/assets/neleesha-peiris.png",
+    github: "https://github.com/nelee25",
+    linkedin: "https://www.linkedin.com/in/neleesha-peiris-43b503319/"
+  },
+];
+
+const skillsMatrix = [
+  ["Embedded Systems", 4],
+  ["Electronics", 4],
+  ["CAD Design", 3],
+  ["Programming", 5],
+  ["Testing", 4],
+  ["Documentation", 5],
+];
+
+function App() {
+  return (
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-[var(--text)] focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-[var(--bg)]"
+      >
+        Skip to content
+      </a>
+
+      <Header />
+
+      <main id="main">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/overview" element={<OverviewPage />} />
+          <Route path="/system" element={<SystemPage />} />
+          <Route path="/hardware" element={<HardwarePage />} />
+          <Route path="/team" element={<TeamPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
+
+function Header() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[rgba(0,0,0,0.88)] backdrop-blur-md">
+      <nav
+        className="mx-auto flex w-[min(1120px,calc(100%_-_32px))] flex-col items-start justify-between gap-4 py-4 sm:flex-row sm:items-center sm:gap-6"
+        aria-label="Primary navigation"
+      >
+        <Link to="/" className="group flex items-center gap-3" aria-label="Scrablify home">
+          <span className="site-logo transition-transform duration-200 group-hover:scale-95" aria-hidden="true" />
+        </Link>
+
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-[var(--muted)] sm:w-auto sm:justify-end">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className={({ isActive }) =>
+                `relative pb-1 transition-colors duration-200 after:absolute after:bottom-0 after:left-1/2 after:h-0.5 after:w-5 after:-translate-x-1/2 after:rounded-full after:bg-[var(--primary)] after:transition-transform after:duration-200 hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--primary)] ${
+                  isActive ? "text-[var(--primary)] after:scale-x-100" : "after:scale-x-0"
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+    </header>
+  );
+}
+
+function HomePage() {
+  return (
+    <>
+      <Hero />
+      <RealTimeMatchDashboard />
+      <ProjectHighlights />
+      <StatisticsSection />
+    </>
+  );
+}
+
+function OverviewPage() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="Overview"
+        title="Project presentation for a human-versus-robot Scrabble system."
+        copy="This page collects the high-level project goals, evaluation context, and measurable presentation placeholders for Scrablify."
+      />
+      <Overview />
+      <RealTimeMatchDashboard />
+      <TeamAndNextSteps />
+    </>
+  );
+}
+
+function SystemPage() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="System"
+        title="Architecture that connects perception, scoring, motion, and supervision."
+        copy="Use this page to explain the full technical path from physical board input to robot tile placement."
+      />
+      <SystemArchitecture />
+      <Workflow />
+    </>
+  );
+}
+
+function HardwarePage() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="Hardware architecture"
+        title="Electronics, motion control, sensing, and power systems behind Scrablify."
+        copy="A technical view of the components used in the smart Scrabble board: plotter motion, electromagnetic tile pickup, OCR sensing, challenge controls, LED feedback, and regulated power distribution."
+      />
+      <HardwareOverview />
+      <HardwareModules />
+      <SystemConnections />
+      <PowerDistribution />
+      <HardwareChallenges />
+    </>
+  );
+}
+
+function ParticleCanvas() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    let particles = [];
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.vy = (Math.random() - 0.5) * 0.3;
+        this.radius = Math.random() * 1.5 + 0.3;
+        this.alpha = Math.random() * 0.4 + 0.05;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.x < 0) this.x = canvas.width;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.y < 0) this.y = canvas.height;
+        if (this.y > canvas.height) this.y = 0;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(110, 231, 183, ${this.alpha})`;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 70; i++) {
+      particles.push(new Particle());
+    }
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-[-1]"
+      style={{ opacity: 0.6 }}
+    />
+  );
+}
+
+function TeamPage() {
+  return (
+    <>
+      <ParticleCanvas />
+      <section className="mx-auto w-[min(1120px,calc(100%_-_32px))] pb-4 pt-16 sm:pt-20 lg:pt-24 text-center flex flex-col items-center">
+        <ScrollReveal immediate variant="blur-up" delay={0.1} duration={1.05}>
+          <h1 className="max-w-4xl text-balance text-4xl font-extrabold leading-tight tracking-[-0.06em] sm:text-6xl text-white">
+            Meet the Scrablify Team
+          </h1>
+        </ScrollReveal>
+      </section>
+      <TeamIntroduction />
+      <TeamMemberCards />
+      <TeamSkillsMatrix />
+    </>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <section className="mx-auto w-[min(1120px,calc(100%_-_32px))] py-24">
+      <p className="eyebrow">404</p>
+      <h1 className="mt-5 max-w-3xl text-4xl font-extrabold leading-tight tracking-[-0.06em] sm:text-6xl">
+        Page not found.
+      </h1>
+      <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--muted)]">
+        The requested Scrablify page does not exist. Return to the project overview or use the navigation.
+      </p>
+      <Link className="btn-primary mt-8" to="/">
+        Back to home
+      </Link>
+    </section>
+  );
+}
+
+function TeamIntroduction() {
+  return (
+    <Section>
+      <ScrollReveal variant="scale-up" duration={1}>
+        <article className="team-glass-card rounded-[1.75rem] p-7 md:p-9">
+          <p className="mx-auto max-w-4xl text-center text-base leading-8 text-[var(--muted)]">
+            Our mission is to turn a familiar board game into a robotics demonstration that is clear,
+            measurable, and technically credible. The team works across sensing, control, mechanics,
+            software, testing, and documentation to present Scrablify as a complete university-level
+            hardware project.
+          </p>
+        </article>
+      </ScrollReveal>
+    </Section>
+  );
+}
+
+function TeamMemberCards() {
+  const handleMouseMoveCard = (e, cardElement) => {
+    if (!cardElement) return;
+    const rect = cardElement.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    cardElement.style.transform = `perspective(600px) rotateY(${x * 14}deg) rotateX(${-y * 10}deg) scale(1.02)`;
+  };
+
+  const handleMouseLeaveCard = (cardElement) => {
+    if (!cardElement) return;
+    cardElement.style.transform = '';
+  };
+
+  return (
+    <Section eyebrow="Team members" headerClassName="mx-auto text-center" eyebrowClassName="text-3xl sm:text-5xl lg:text-6xl" animateHeader>
+      <ScrollRevealStagger className="team-scroll-grid flex flex-wrap justify-center gap-6" stagger={0.14} variant="tilt-up">
+        {teamMembers.map((member) => (
+          <div key={member.name} className="team-card-container w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]">
+            <Card 
+              className="team-glass-card p-6 h-full team-card-3d relative overflow-hidden group"
+              onMouseMove={(e) => handleMouseMoveCard(e, e.currentTarget)}
+              onMouseLeave={(e) => handleMouseLeaveCard(e.currentTarget)}
+            >
+              <div 
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[140px] h-[80px] rounded-[100%] blur-[30px] opacity-0 transition-opacity duration-500 group-hover:opacity-50 pointer-events-none"
+                style={{ backgroundColor: member.color }}
+              />
+              <div className="flex flex-col gap-5 items-center text-center">
+                <div className="avatar-container">
+                  <div 
+                    className="avatar-ring" 
+                    style={{ color: member.color }}
+                  />
+                  <img 
+                    src={member.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=080A12&color=${member.color.replace('#', '')}&size=112`} 
+                    alt={member.name}
+                    className="w-full h-full rounded-full object-cover border border-[var(--border)] relative z-10"
+                  />
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold tracking-[-0.04em]">{member.name}</p>
+                  
+                  <div className="flex justify-center gap-4 mt-4">
+                    <a
+                      href={member.linkedin || "#"}
+                      className="text-[var(--muted)] hover:text-white transition-colors"
+                      aria-label={`${member.name} LinkedIn`}
+                      target={member.linkedin ? "_blank" : undefined}
+                      rel={member.linkedin ? "noreferrer" : undefined}
+                    >
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                    </a>
+                    <a
+                      href={member.github || "#"}
+                      className="text-[var(--muted)] hover:text-white transition-colors"
+                      aria-label={`${member.name} GitHub`}
+                      target={member.github ? "_blank" : undefined}
+                      rel={member.github ? "noreferrer" : undefined}
+                    >
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                  </div>
+
+                  <p className="mt-5 text-sm leading-7 text-[var(--muted)] text-left">
+                    {member.description}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        ))}
+      </ScrollRevealStagger>
+    </Section>
+  );
+}
+
+function TeamSkillsMatrix() {
+  return (
+    <Section eyebrow="Skills Overview" headerClassName="mx-auto text-center" eyebrowClassName="text-3xl sm:text-5xl lg:text-6xl" animateHeader>
+      <ScrollReveal variant="fade-up" duration={1}>
+        <SkillsMatrix skills={skillsMatrix} />
+      </ScrollReveal>
+    </Section>
+  );
+}
+
+function PageHeader({ eyebrow, title, copy }) {
+  return (
+    <section className="mx-auto w-[min(1120px,calc(100%_-_32px))] pb-4 pt-16 sm:pt-20 lg:pt-24">
+      <p className="eyebrow">{eyebrow}</p>
+      <h1 className="mt-5 max-w-4xl text-balance text-4xl font-extrabold leading-tight tracking-[-0.06em] sm:text-6xl">
+        {title}
+      </h1>
+      <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--muted)]">{copy}</p>
+    </section>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="mx-auto grid w-[min(1120px,calc(100%_-_32px))] items-center gap-14 py-20 md:min-h-[calc(100vh-73px)] md:grid-cols-[1.05fr_0.95fr] lg:py-28">
+      <div className="animate-rise">
+        <p className="eyebrow">First Year Hardware Project</p>
+        <h1 className="mt-5 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.07em] sm:text-6xl lg:text-8xl">
+          Scrablify
+        </h1>
+        <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--muted)]">
+          A robotics hardware project that lets a human play Scrabble against an automated
+          robot through vision, motion control, embedded systems, and a live match dashboard.
+        </p>
+
+        <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+          <Link className="btn-primary" to="/overview">
+            View Live Dashboard
+          </Link>
+          <Link className="btn-secondary" to="/hardware">
+            Explore Hardware
+          </Link>
+        </div>
+      </div>
+
+      <HeroMediaPlaceholder />
+    </section>
+  );
+}
+
+function HeroMediaPlaceholder() {
+  return (
+    <aside
+      className="animate-rise rounded-[2rem] border border-[var(--border)] bg-[var(--bg-soft)] p-4 delay-100"
+      aria-label="Hero image or video placeholder"
+    >
+      <div className="grid min-h-[420px] place-items-center rounded-[1.5rem] border border-[rgba(255,255,255,0.08)] bg-[var(--bg)] p-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="mx-auto grid aspect-video w-full place-items-center rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.035)]">
+            <div className="grid h-20 w-20 place-items-center rounded-full border border-[var(--border)] text-sm font-extrabold text-[var(--primary)]">
+              Media
+            </div>
+          </div>
+          <p className="mt-6 text-sm font-bold">Hero image / video placeholder</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Add a final robot-arm demo video, CAD render, or physical prototype photograph here.
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function RealTimeMatchDashboard() {
+  const match = useLiveMatch();
+
+  return (
+    <Section eyebrow="Live match" title="Live scores and countdowns from the Scrablify game.">
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-extrabold ${
+              match.connection === "connected"
+                ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
+                : "border-amber-400/35 bg-amber-400/10 text-amber-100"
+            }`}
+            aria-live="polite"
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${match.connection === "connected" ? "bg-emerald-300" : "bg-amber-300"}`}
+              aria-hidden="true"
+            />
+            {match.connection === "connected" ? "Python app connected" : "Waiting for Python app"}
+          </div>
+
+          <form className="flex w-full gap-2 sm:w-auto" onSubmit={match.connect}>
+            <label className="sr-only" htmlFor="python-app-address">Python app address</label>
+            <input
+              id="python-app-address"
+              type="text"
+              value={match.endpointInput}
+              onChange={(event) => match.setEndpointInput(event.target.value)}
+              placeholder="http://192.168.1.20:8765"
+              className="min-w-0 flex-1 rounded-full border border-[var(--border)] bg-black/30 px-4 py-2 text-sm text-white outline-none transition focus:border-[var(--primary)] sm:w-64"
+              spellCheck="false"
+            />
+            <button type="submit" className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[var(--primary-strong)]">
+              Connect
+            </button>
+          </form>
+        </div>
+        {match.connectionError ? (
+          <p className="border-b border-[var(--border)] px-5 py-3 text-sm text-amber-100" role="status">
+            {match.connectionError}
+          </p>
+        ) : null}
+
+        <div className="grid lg:grid-cols-[1fr_0.9fr_1fr]">
+          <CompetitorPanel side="Human Player" score={match.human.score} isActive={match.currentPlayer === "Human Player"} />
+
+          <div className="border-y border-[var(--border)] p-6 text-center lg:border-x lg:border-y-0 sm:p-8">
+            <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[var(--primary)]">
+              Turn Countdown
+            </p>
+            <p className="mt-5 font-mono text-6xl font-extrabold tracking-[-0.08em] sm:text-7xl">
+              {formatTimer(match.turnCountdownSeconds)}
+            </p>
+            <p className="mt-3 text-sm font-bold text-[var(--muted)]">{match.gameStatusLabel}</p>
+            <div className="mt-8 rounded-3xl border border-[var(--border)] bg-[rgba(0,106,78,0.12)] p-5">
+              <p className="text-sm font-bold text-[var(--muted)]">Playing Right Now</p>
+              <p className="mt-2 text-3xl font-extrabold tracking-[-0.05em] text-[var(--text)]">
+                {match.currentPlayer}
+              </p>
+            </div>
+            <div className="mt-3 rounded-2xl border border-[var(--border)] bg-black/20 px-4 py-3">
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--muted)]">Cart Countdown</p>
+              <p className="mt-1 font-mono text-2xl font-extrabold">
+                {match.cartCountdownActive ? formatTimer(match.cartCountdownSeconds) : "Ready"}
+              </p>
+            </div>
+          </div>
+
+          <CompetitorPanel side="Robot" score={match.robot.score} isActive={match.currentPlayer === "Robot"} />
+        </div>
+      </Card>
+    </Section>
+  );
+}
+
+function CompetitorPanel({ side, score, isActive }) {
+  return (
+    <section
+      className={`grid min-h-[310px] place-items-center p-6 text-center transition-colors duration-300 sm:p-8 ${isActive ? "bg-[rgba(0,106,78,0.08)]" : ""}`}
+      aria-label={`${side} scoreboard`}
+    >
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[var(--primary)]">{side}</p>
+          <p className="mt-3 text-7xl font-extrabold tracking-[-0.09em] transition-all duration-500 sm:text-8xl">
+            {score}
+          </p>
+          <p className="mt-2 text-sm font-bold text-[var(--muted)]">Live Score</p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-bold ${isActive ? "border-[var(--primary)] bg-[rgba(0,106,78,0.18)] text-[var(--text)]" : "border-[var(--border)] text-[var(--muted)]"}`}>
+          {isActive ? "Playing" : "Waiting"}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function useLiveMatch() {
+  const [apiUrl, setApiUrl] = useState(getInitialApiUrl);
+  const [endpointInput, setEndpointInput] = useState(getInitialApiUrl);
+  const [connection, setConnection] = useState("connecting");
+  const [connectionError, setConnectionError] = useState("");
+  const [match, setMatch] = useState({
+    currentPlayer: "Waiting",
+    human: { score: 0 },
+    robot: { score: 0 },
+    turnCountdownSeconds: 120,
+    cartCountdownSeconds: null,
+    cartCountdownActive: false,
+    gameStatus: "not_started",
+  });
+
+  useEffect(() => {
+    let active = true;
+    let pollTimer;
+
+    const loadMatch = async () => {
+      const controller = new AbortController();
+      const requestTimeout = window.setTimeout(() => controller.abort(), 2500);
+
+      try {
+        const response = await fetch(`${apiUrl}/api/match`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`The Python app returned ${response.status}.`);
+        const payload = await response.json();
+        if (!active) return;
+
+        const gameStatus = payload.game_status || "not_started";
+        const currentPlayer = gameStatus === "not_started"
+          ? "Waiting"
+          : Number(payload.current_player) === 1 ? "Robot" : "Human Player";
+        setMatch({
+          currentPlayer,
+          human: { score: safeScore(payload.player_2_score) },
+          robot: { score: safeScore(payload.player_1_score) },
+          turnCountdownSeconds: safeCountdown(payload.turn_countdown_seconds),
+          cartCountdownSeconds: safeCountdown(payload.cart_countdown_seconds),
+          cartCountdownActive: Boolean(payload.cart_countdown_active),
+          gameStatus,
+        });
+        setConnection("connected");
+        setConnectionError("");
+      } catch (error) {
+        if (!active) return;
+        setConnection("disconnected");
+        setConnectionError(
+          `Cannot reach ${apiUrl}. Enter the “Website feed” address shown in the Python app.`,
+        );
+      } finally {
+        window.clearTimeout(requestTimeout);
+        if (active) pollTimer = window.setTimeout(loadMatch, 500);
+      }
+    };
+
+    setConnection("connecting");
+    loadMatch();
+
+    return () => {
+      active = false;
+      window.clearTimeout(pollTimer);
+    };
+  }, [apiUrl]);
+
+  const connect = (event) => {
+    event.preventDefault();
+    const normalized = normalizeApiUrl(endpointInput);
+    if (!normalized) {
+      setConnectionError("Enter an address such as http://192.168.1.20:8765.");
+      return;
+    }
+    window.localStorage.setItem("scrablify-api-url", normalized);
+    setEndpointInput(normalized);
+    setApiUrl(normalized);
+  };
+
+  return {
+    ...match,
+    connection,
+    connectionError,
+    endpointInput,
+    setEndpointInput,
+    connect,
+    gameStatusLabel: gameStatusLabel(match.gameStatus),
+  };
+}
+
+function formatTimer(totalSeconds) {
+  if (totalSeconds === null || totalSeconds === undefined) return "--:--";
+  const safeTotal = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const minutes = Math.floor(safeTotal / 60).toString().padStart(2, "0");
+  const seconds = (safeTotal % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function getInitialApiUrl() {
+  const queryApi = new URLSearchParams(window.location.search).get("api");
+  const configuredApi = import.meta.env.VITE_SCRABBLE_API_URL;
+  const savedApi = window.localStorage.getItem("scrablify-api-url");
+  return normalizeApiUrl(queryApi || savedApi || configuredApi || "http://localhost:8765");
+}
+
+function normalizeApiUrl(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  try {
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    const url = new URL(candidate);
+    if (!url.port) url.port = "8765";
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return "";
+  }
+}
+
+function safeScore(value) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0;
+}
+
+function safeCountdown(value) {
+  if (value === null || value === undefined) return null;
+  const seconds = Number(value);
+  return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : null;
+}
+
+function gameStatusLabel(status) {
+  const labels = {
+    playing: "Turn in progress",
+    scanning: "Scanning the board",
+    robot_moving: "Robot is placing tiles",
+    paused: "Countdown paused",
+    not_started: "Game has not started",
+  };
+  return labels[status] || "Waiting for game state";
+}
+
+function ProjectHighlights() {
+  return (
+    <Section eyebrow="Project highlights" title="Core engineering disciplines behind the build.">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {highlights.map((item) => (
+          <Card key={item.title} className="p-6">
+            <h3 className="text-xl font-extrabold tracking-[-0.03em]">{item.title}</h3>
+            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">{item.copy}</p>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function StatisticsSection() {
+  return (
+    <Section eyebrow="Statistics" title="Performance placeholders for the final demo report.">
+      <div className="grid gap-4 md:grid-cols-4">
+        {stats.map(([label, value, detail]) => (
+          <Card key={label} className="p-6">
+            <p className="text-sm font-bold text-[var(--muted)]">{label}</p>
+            <p className="mt-4 text-4xl font-extrabold tracking-[-0.06em]">{value}</p>
+            <p className="mt-4 text-sm leading-6 text-[var(--muted)]">{detail}</p>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function ProjectPanel() {
+  return (
+    <aside
+      className="animate-rise rounded-[2rem] border border-[var(--border)] bg-[var(--bg-soft)] p-5 delay-100 sm:p-6"
+      aria-label="Scrablify system summary"
+    >
+      <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--bg)] p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-[var(--primary)]">System Preview</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">Robot turn loop</p>
+          </div>
+          <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text)]">
+            Online
+          </span>
+        </div>
+
+        <div className="mt-8 grid grid-cols-5 gap-2" aria-hidden="true">
+          {"SCRABOTWORDSHUMANREADY".slice(0, 25).split("").map((letter, index) => (
+            <span
+              key={`${letter}-${index}`}
+              className={`grid aspect-square place-items-center rounded-lg border text-sm font-extrabold ${
+                index % 6 === 0
+                  ? "border-[var(--primary)] bg-[rgba(0,106,78,0.18)] text-[var(--text)]"
+                  : "border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[var(--muted)]"
+              }`}
+            >
+              {letter}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-8 space-y-3">
+          <StatusRow label="Vision scan" value="Board aligned" />
+          <StatusRow label="Robot arm" value="Home position" />
+          <StatusRow label="Next action" value="Await human move" />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function StatusRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[rgba(255,255,255,0.08)] px-4 py-3">
+      <span className="text-sm text-[var(--muted)]">{label}</span>
+      <span className="text-sm font-bold">{value}</span>
+    </div>
+  );
+}
+
+function Overview() {
+  return (
+    <Section id="overview" eyebrow="Project overview" title="A clear presentation layer for a complex physical system.">
+      <div className="grid gap-4 md:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.label} className="p-6">
+            <p className="text-3xl font-extrabold tracking-[-0.05em]">{metric.value}</p>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{metric.label}</p>
+          </Card>
+        ))}
+      </div>
+      <p className="mt-8 max-w-3xl text-base leading-8 text-[var(--muted)]">
+        This page is designed for project evaluation, lab demonstrations, and portfolio review. Replace
+        each placeholder with measured values, component choices, diagrams, and team documentation as
+        the hardware matures.
+      </p>
+    </Section>
+  );
+}
+
+function SystemArchitecture() {
+  return (
+    <Section id="system" eyebrow="System architecture" title="Four layers from board perception to robot action.">
+      <div className="grid gap-4 lg:grid-cols-4">
+        {architecture.map((item, index) => (
+          <Card key={item.title} className="p-6">
+            <span className="text-sm font-extrabold text-[var(--primary)]">0{index + 1}</span>
+            <h3 className="mt-5 text-xl font-extrabold tracking-[-0.03em]">{item.title}</h3>
+            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">{item.detail}</p>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function HardwareOverview() {
+  return (
+    <Section id="hardware-overview" eyebrow="Hardware overview" title="A smart board built from motion, sensing, interaction, and power subsystems.">
+      <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <Card className="p-7">
+          <p className="text-base leading-8 text-[var(--muted)]">
+            Scrablify combines an X-Y plotter, electromagnetic tile pickup, OCR-based board sensing,
+            a local LCD challenge interface, LED highlighting, and regulated actuator power. The hardware
+            is organized so gameplay decisions from the software layer can become physical movement on
+            the Scrabble board.
+          </p>
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+            {hardwareOverview.map(([label, detail]) => (
+              <div key={label} className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.025)] p-4">
+                <p className="text-sm font-extrabold text-[var(--primary)]">{label}</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden p-0">
+          <div className="grid min-h-full place-items-center border-b border-[rgba(255,255,255,0.08)] bg-[radial-gradient(circle_at_top,rgba(0,106,78,0.24),transparent_62%)] p-8">
+            <div className="grid w-full max-w-sm grid-cols-3 gap-3 text-center text-xs font-extrabold text-[var(--muted)]">
+              {["Camera", "LCD", "LEDs", "ESP32", "Arduino", "Drivers", "X-Y Axis", "Magnet", "Cart"].map((item) => (
+                <span key={item} className="rounded-2xl border border-[var(--border)] bg-[rgba(0,0,0,0.35)] px-3 py-4">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="p-6">
+            <p className="text-sm font-extrabold text-[var(--primary)]">Architecture Placeholder</p>
+            <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+              Replace this with your final block diagram, CAD render, or annotated hardware photo.
+            </p>
+          </div>
+        </Card>
+      </div>
+    </Section>
+  );
+}
+
+function HardwareModules() {
+  return (
+    <Section id="hardware" eyebrow="Components showcase" title="Browse hardware modules in a 3D carousel with full specs below.">
+      <HardwareCarousel modules={hardwareModules} />
+    </Section>
+  );
+}
+
+function SystemConnections() {
+  return (
+    <Section id="system-connections" eyebrow="System connections" title="Control wiring and data flow from player action to robot movement.">
+      <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+        <Card className="p-6">
+          <p className="text-sm font-extrabold text-[var(--primary)]">Wiring Architecture Visualization</p>
+          <div className="mt-6 grid gap-4 text-center text-sm font-bold text-[var(--muted)]">
+            <ConnectionNode label="Camera + Buttons" />
+            <ConnectionArrow />
+            <ConnectionNode label="Python OCR + Game Logic" emphasis />
+            <ConnectionArrow />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ConnectionNode label="ESP32 IO Control" />
+              <ConnectionNode label="Arduino + CNC Shield" />
+            </div>
+            <ConnectionArrow />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ConnectionNode label="Motors" />
+              <ConnectionNode label="Electromagnet" />
+              <ConnectionNode label="LCD + LEDs" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <p className="text-sm font-extrabold text-[var(--primary)]">Data Flow Explanation</p>
+          <ol className="mt-6 space-y-3">
+            {connectionFlow.map((step, index) => (
+              <li key={step} className="grid grid-cols-[36px_1fr] gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] p-4">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--primary)] text-sm font-extrabold text-[var(--bg)]">
+                  {index + 1}
+                </span>
+                <p className="text-sm leading-7 text-[var(--muted)]">{step}</p>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      </div>
+    </Section>
+  );
+}
+
+function PowerDistribution() {
+  return (
+    <Section id="power-distribution" eyebrow="Power distribution" title="12V actuator power regulated into stable logic and control branches.">
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <Card className="p-6">
+          <p className="text-sm font-extrabold text-[var(--primary)]">Power Flow Diagram</p>
+          <div className="mt-6 rounded-3xl border border-[rgba(255,255,255,0.08)] p-5">
+            <div className="grid gap-3">
+              <ConnectionNode label="12V Power Pack" emphasis />
+              <ConnectionArrow />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ConnectionNode label="Motor / Magnet Rail" />
+                <ConnectionNode label="Buck Converter" />
+              </div>
+              <ConnectionArrow />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <ConnectionNode label="Steppers + Gear Motor" />
+                <ConnectionNode label="Arduino / ESP32" />
+                <ConnectionNode label="LCD / LEDs / Buttons" />
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <p className="text-sm font-extrabold text-[var(--primary)]">Voltage Regulation Explanation</p>
+          <div className="mt-6 grid gap-3">
+            {powerRails.map(([label, detail]) => (
+              <div key={label} className="rounded-2xl border border-[rgba(255,255,255,0.08)] p-4">
+                <p className="font-extrabold text-[var(--text)]">{label}</p>
+                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </Section>
+  );
+}
+
+function HardwareChallenges() {
+  return (
+    <Section id="hardware-challenges" eyebrow="Hardware challenges" title="Engineering issues found during build and the solutions used.">
+      <div className="grid gap-4 md:grid-cols-2">
+        {hardwareChallenges.map((item) => (
+          <Card key={item.challenge} className="p-6">
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--primary)]">Challenge</p>
+            <h3 className="mt-3 text-xl font-extrabold tracking-[-0.03em]">{item.challenge}</h3>
+            <p className="mt-5 text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--primary)]">Solution</p>
+            <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.solution}</p>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function InfoBlock({ title, copy }) {
+  return (
+    <div className="mt-5">
+      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--primary)]">{title}</p>
+      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{copy}</p>
+    </div>
+  );
+}
+
+function ConnectionNode({ label, emphasis = false }) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 ${
+        emphasis
+          ? "border-[var(--primary)] bg-[rgba(0,106,78,0.16)] text-[var(--text)]"
+          : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.025)]"
+      }`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function ConnectionArrow() {
+  return <div className="mx-auto h-7 w-px bg-[var(--border)]" aria-hidden="true" />;
+}
+
+function Workflow() {
+  return (
+    <Section id="workflow" eyebrow="Workflow" title="A repeatable turn cycle for demonstration and testing.">
+      <ol className="grid gap-4 md:grid-cols-4">
+        {workflow.map((step, index) => (
+          <Card key={step} className="p-6">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--primary)] text-sm font-extrabold text-[var(--bg)]">
+              {index + 1}
+            </span>
+            <p className="mt-5 text-sm leading-7 text-[var(--muted)]">{step}</p>
+          </Card>
+        ))}
+      </ol>
+    </Section>
+  );
+}
+
+function TeamAndNextSteps() {
+  return (
+    <Section eyebrow="Presentation ready" title="Built for juries, demos, and future iteration.">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card className="p-7">
+          <h3 className="text-2xl font-extrabold tracking-[-0.04em]">Team documentation placeholder</h3>
+          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            Add team member roles, contribution areas, mentor notes, parts list ownership, and final
+            presentation responsibilities. Keep this section concise and evidence-driven.
+          </p>
+        </Card>
+        <Card className="p-7">
+          <h3 className="text-2xl font-extrabold tracking-[-0.04em]">Next engineering milestones</h3>
+          <ul className="mt-4 space-y-3 text-sm leading-7 text-[var(--muted)]">
+            <li>Finalize camera calibration and board-state accuracy tests.</li>
+            <li>Document gripper tolerance and failed-pickup recovery behavior.</li>
+            <li>Connect live telemetry once hardware APIs are available.</li>
+          </ul>
+        </Card>
+      </div>
+    </Section>
+  );
+}
+
+function Section({ id, eyebrow, title, children, headerClassName = "", eyebrowClassName = "", animateHeader = false }) {
+  const header = (eyebrow || title) && (
+    <div className={`mb-10 max-w-3xl ${headerClassName}`}>
+      {eyebrow && <p className={`eyebrow ${eyebrowClassName}`}>{eyebrow}</p>}
+      {title && (
+        <h2 className="mt-4 text-balance text-3xl font-extrabold leading-tight tracking-[-0.055em] sm:text-5xl">
+          {title}
+        </h2>
+      )}
+    </div>
+  );
+
+  return (
+    <section id={id} className="mx-auto w-[min(1120px,calc(100%_-_32px))] py-16 sm:py-20 lg:py-24">
+      {header && (animateHeader ? <ScrollReveal variant="blur-up">{header}</ScrollReveal> : header)}
+      {children}
+    </section>
+  );
+}
+
+function Card({ className = "", children }) {
+  return (
+    <article className={`rounded-[1.5rem] border border-[var(--border)] bg-[rgba(255,255,255,0.04)] ${className}`}>
+      {children}
+    </article>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="w-full pt-10 text-sm text-[var(--muted)]">
+      <div className="overflow-hidden border-y border-[var(--border)] bg-[linear-gradient(135deg,rgba(0,106,78,0.13),rgba(255,255,255,0.035))]">
+        <div className="mx-auto grid w-[min(1120px,calc(100%_-_32px))] gap-8 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr_0.75fr]">
+          <div>
+            <Link to="/" className="inline-flex items-center gap-3" aria-label="Scrablify home">
+              <span className="site-logo" aria-hidden="true" />
+            </Link>
+            <p className="mt-5 max-w-md leading-7">
+              A smart Scrabble board project combining robotics, OCR-based word validation,
+              embedded control, and an interactive live dashboard.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {["Robotics", "OCR", "Microcontrollers", "Live Dashboard"].map((item) => (
+                <span key={item} className="rounded-full border border-[var(--border)] bg-[rgba(0,0,0,0.2)] px-3 py-1 text-xs font-bold text-[var(--text)]">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[var(--primary)]">Project Info</p>
+            <div className="mt-5 grid gap-3">
+              <FooterInfo label="Project" value="First Year Microcontroller Project" />
+              <FooterInfo label="Faculty" value="Faculty of Information Technology" />
+              <FooterInfo label="Batch" value="Batch 24" />
+              <FooterInfo label="Team" value="Team Slytherin" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[var(--primary)]">Explore</p>
+            <nav className="mt-5 grid gap-3" aria-label="Footer navigation">
+              {navItems.map((item) => (
+                <Link key={item.href} to={item.href} className="transition-colors hover:text-[var(--text)]">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+
+        <div className="mx-auto flex w-[min(1120px,calc(100%_-_32px))] flex-col gap-3 border-t border-[rgba(255,255,255,0.08)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <p>Built by Team Slytherin for the CM1900 Intelligent Machines Inspirational Project.</p>
+          <p className="font-bold text-[var(--text)]">University of Moratuwa</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterInfo({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--primary)]">{label}</p>
+      <p className="mt-1 font-bold text-[var(--text)]">{value}</p>
+    </div>
+  );
+}
+
+export default App;
