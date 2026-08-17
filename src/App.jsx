@@ -3,6 +3,7 @@ import { Link, NavLink, Route, Routes } from "react-router-dom";
 import HardwareCarousel from "./components/HardwareCarousel";
 import SkillsMatrix from "./components/SkillsMatrix";
 import { ScrollReveal, ScrollRevealStagger } from "./components/ScrollReveal";
+import heroPrototypeImage from "../WhatsApp Image 2026-08-17 at 12.12.17 PM.jpeg";
 
 const navItems = [
   { label: "Overview", href: "/overview" },
@@ -618,13 +619,13 @@ function PageHeader({ eyebrow, title, copy }) {
 
 function Hero() {
   return (
-    <section className="mx-auto grid w-[min(1120px,calc(100%_-_32px))] items-center gap-14 py-20 md:min-h-[calc(100vh-73px)] md:grid-cols-[1.05fr_0.95fr] lg:py-28">
+    <section className="mx-auto grid w-[min(1180px,calc(100%_-_32px))] items-center gap-10 py-16 md:min-h-[calc(100vh-73px)] md:grid-cols-[0.95fr_1.05fr] lg:gap-16 lg:py-24">
       <div className="animate-rise">
         <p className="eyebrow">First Year Hardware Project</p>
-        <h1 className="mt-5 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.07em] sm:text-6xl lg:text-8xl">
+        <h1 className="mt-5 max-w-3xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.07em] sm:text-6xl lg:text-7xl">
           Scrablify
         </h1>
-        <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--muted)]">
+        <p className="mt-7 max-w-xl text-lg leading-8 text-[var(--muted)]">
           A robotics hardware project that lets a human play Scrabble against an automated
           robot through vision, motion control, embedded systems, and a live match dashboard.
         </p>
@@ -647,19 +648,21 @@ function Hero() {
 function HeroMediaPlaceholder() {
   return (
     <aside
-      className="animate-rise rounded-[2rem] border border-[var(--border)] bg-[var(--bg-soft)] p-4 delay-100"
-      aria-label="Hero image or video placeholder"
+      className="animate-rise w-full max-w-[560px] justify-self-center rounded-[2rem] border border-[var(--border)] bg-[var(--bg-soft)] p-4 delay-100 lg:justify-self-end"
+      aria-label="Hero prototype image"
     >
-      <div className="grid min-h-[420px] place-items-center rounded-[1.5rem] border border-[rgba(255,255,255,0.08)] bg-[var(--bg)] p-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="mx-auto grid aspect-video w-full place-items-center rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.035)]">
-            <div className="grid h-20 w-20 place-items-center rounded-full border border-[var(--border)] text-sm font-extrabold text-[var(--primary)]">
-              Media
-            </div>
+      <div className="grid min-h-[460px] place-items-center rounded-[1.5rem] border border-[rgba(255,255,255,0.08)] bg-[var(--bg)] p-5 sm:p-6">
+        <div className="w-full max-w-none text-center">
+          <div className="mx-auto overflow-hidden rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.035)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <img
+              src={heroPrototypeImage}
+              alt="Scrablify prototype with the Scrabble board, frame, and hardware mounted on the platform"
+              className="aspect-[4/5] w-full object-cover object-center"
+            />
           </div>
-          <p className="mt-6 text-sm font-bold">Hero image / video placeholder</p>
+          <p className="mt-5 text-sm font-bold">Physical prototype in the hero panel</p>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Add a final robot-arm demo video, CAD render, or physical prototype photograph here.
+            The current build is shown here so visitors can immediately see the assembled robot board and frame.
           </p>
         </div>
       </div>
